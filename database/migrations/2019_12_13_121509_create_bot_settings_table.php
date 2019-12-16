@@ -31,14 +31,14 @@ class CreateBotSettingsTable extends Migration
 
             $table->longText('Welcome_message')->nullable();
 
-            $table->float('Registration_sum')->default(0);
+            $table->double('Registration_sum')->default(0);
 
-            $table->float('Minimal_windrow_sum')->default(0);
+            $table->double('Minimal_windrow_sum')->default(0);
 
-            $table->float('Random_sum_start')->default(0);
-            $table->float('Random_sum_end')->default(0);
+            $table->double('Random_sum_start')->default(0);
+            $table->double('Random_sum_end')->default(0);
 
-            $table->float('Referal_sum')->default(0);
+            $table->double('Referal_sum')->default(0);
 
             $table->integer('Referal_procent')->default(0);
 

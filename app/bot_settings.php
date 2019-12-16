@@ -27,6 +27,23 @@ class bot_settings extends Model
             ->first();
     }
 
+    public function getQuestions() {
+        return DB::table('table_questions')
+            ->where('table_questions.status', 0)
+            ->select('table_questions.*')
+            ->latest()
+            ->paginate(4);
+    }
+
+    public function answerQuestion($id, $userId) {
+        return DB::table('table_questions')
+            ->where('table_questions.id', $id)
+            ->where('table_questions.userId', $userId)
+            ->update([
+                'status' => 1
+            ]);
+    }
+
     public function saveSettings($data) {
         $req = DB::table('bot_settings')
             ->count();
@@ -34,6 +51,7 @@ class bot_settings extends Model
             if ($key!= 'Welcome_message' && $key!= '_token')
                 $item = str_replace(',', '.', $item);
         }
+
         if ($req > 0) {
             return DB::table('bot_settings')
                 ->where('bot_settings.id', 1)

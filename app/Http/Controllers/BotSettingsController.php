@@ -8,7 +8,7 @@ use App\bot_settings;
 class BotSettingsController extends Controller
 {
     public function saveSettings(Request $request) {
-       // dd($request->all());
+        //dd($request->all());
         $botSettings = new bot_settings();
         $botSettings->saveSettings($request->all());
 

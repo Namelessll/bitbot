@@ -16,7 +16,7 @@ class CreateTableBotUsers extends Migration
         Schema::create('table_bot_users', function (Blueprint $table) {
             $table->bigIncrements('telegramId');
             $table->string('telegramUsername')->nullable();
-            $table->float('balance')->default(0);
+            $table->double('balance')->default(0);
             $table->integer('referalCount')->default(0);
             $table->bigInteger('inviteId')->default(0);
             $table->boolean('ban')->default(0);
