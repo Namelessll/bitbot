@@ -67,7 +67,7 @@ class LogicModel extends Model
         $balance = DB::table('table_bot_users')
             ->where('table_bot_users.telegramId', $id)
             ->select('table_bot_users.balance')
-            ->get()[0];
+            ->get();
 
 
         if ($balance[0]->inviteId != 0) {

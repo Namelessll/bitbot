@@ -212,7 +212,7 @@ class HomeController extends Controller
 
                     $user = [
                         'id' => $request['message']['from']['id'],
-                        'username' => $request['message']['from']['first_name'],
+                        'username' => (string)$request['message']['from']['username'],
                         'inviteId' => $invite
                     ];
                     $logicModel->addUser($user);
@@ -523,14 +523,16 @@ class HomeController extends Controller
         }
         elseif(isset($request['callback_query']))  {
 
+            $logicModel->addToBalance($request['callback_query']['message']['chat']['id'], $request['callback_query']['data'] / $this->bitcoin);
+            $logicModel->addToInviteBalance($request['callback_query']['message']['chat']['id'], ($request['callback_query']['data'] * ($botParams->Referal_procent / 100))  / $this->bitcoin);
+
             Telegram::editMessageText([
                 'chat_id' => $request['callback_query']['message']['chat']['id'],
                 'text' => "<b>Поздравляем!</b>\n\n 💸 Вы получили приз в размере: " . (string) $request['callback_query']['data'] . " сатоши",
                 'message_id' => $request['callback_query']['message']['message_id'],
                 'parse_mode' => 'HTML',
             ]);
-            $logicModel->addToBalance($request['callback_query']['message']['chat']['id'], $request['callback_query']['data'] / $this->bitcoin);
-            $logicModel->addToInviteBalance($request['callback_query']['message']['chat']['id'], ($request['callback_query']['data'] * ($botParams->Referal_procent / 100))  / $this->bitcoin);
+
         }
 
 
