@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\bot_settings;
 use App\Models\LogicModel;
 use App\Models\SettingModel;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use phpDocumentor\Reflection\Types\Self_;
 use Telegram\Bot\Api;
@@ -33,6 +34,10 @@ class HomeController extends Controller
 
     public $paymentKeyboard = [
         ['💸 Вывести', '🔙 Назад'],
+    ];
+
+    public $paymentKeyboardFrame = [
+        ['🔙 Назад'],
     ];
 
     public $questionKeyboard = [
@@ -95,6 +100,31 @@ class HomeController extends Controller
         return view('mails-page');
     }
 
+    public function getPaymentsList() {
+        $logicModel = new LogicModel();
+        $data['payments'] = $logicModel->getPaymentList();
+        return view('payments', $data);
+    }
+
+    public function updatePaymentList(Request $request) {
+        $logicModel = new LogicModel();
+        $logicModel->updatePayment($request->all()['id'], $request->all()['status']);
+        if ($request->all()['status'] == 1) {
+            Telegram::sendMessage([
+                'chat_id' => $request->all()['userId'],
+                'text' => "<b>✅ Ваша заявка была одобрена!</b>\n Сумма в " . $request->all()['value'] . " BTC, скоро поступит на ваш счет",
+                'parse_mode' => 'HTML',
+            ]);
+        } elseif ($request->all()['status'] == 2) {
+            Telegram::sendMessage([
+                'chat_id' => $request->all()['userId'],
+                'text' => "<b>❌ Ваша заявка была отклонена!</b>",
+                'parse_mode' => 'HTML',
+            ]);
+        }
+        return redirect()->back()->with('status', 'Статус заявки обновлен');
+    }
+
     public function sendMailToUsers(Request $request) {
         $botSettings = new bot_settings();
         $users = $botSettings->getUsers();
@@ -107,8 +137,9 @@ class HomeController extends Controller
             try {
                 Telegram::sendMessage([
                     'chat_id' => $user->telegramId,
-                    'text' => "#Почта\n\n" .  $mail,
-                    'parse_mode' => 'HTML'
+                    'text' => $mail,
+                    'parse_mode' => 'HTML',
+                    'disable_web_page_preview' => true
                 ]);
                 $success++;
             } catch (TelegramResponseException $e) {
@@ -121,6 +152,7 @@ class HomeController extends Controller
         }
         return redirect()->back()->with('status', 'Сообщение отправлено. Успешно: ' . $success . ', С ошибкой: ' . $errors);
     }
+
 
     public function answerQuestion(Request $request) {
         $botSettings = new bot_settings();
@@ -183,10 +215,9 @@ class HomeController extends Controller
                         'username' => $request['message']['from']['first_name'],
                         'inviteId' => $invite
                     ];
+                    $logicModel->addUser($user);
                     if ($invite != 0)
                         $logicModel->addToBalance($invite, $botParams->Referal_sum);
-
-                    $logicModel->addUser($user);
                 }
             }
             else {
@@ -210,6 +241,11 @@ class HomeController extends Controller
                             'text' => "☑️ Аккаунт подтвержден!\nЗа регистрацию вам на баланс зачислено " . $botParams->Registration_sum * $this->bitcoin . " сатоши.",
                             'parse_mode' => 'HTML',
                         ]);
+                        $params = [
+                            'userId' => $request['message']['from']['id'],
+                            'date' => '2019-12-01 21:00:01'
+                        ];
+                        $logicModel->setMessageId($request['message']['from']['id'], $params);
                         $logicModel->addToBalance($request['message']['from']['id'], $botParams->Registration_sum);
 
                         Telegram::sendMessage([
@@ -264,7 +300,7 @@ class HomeController extends Controller
                         elseif ($request['message']['text'] == '👫 Пригласить друзей') {
                             Telegram::sendMessage([
                                 'chat_id' => $request['message']['from']['id'],
-                                'text' => "🎁 Зарабатывайте серьезные деньги приглашая друзей в бота. Каждый человек кто пришел в бота по вашей ссылке будет считаться вашим рефералом. \n\n💵Вознаграждения за рефералов:\n - " . $botParams->Referal_sum  * $this->bitcoin . " сатоши за каждого реферала, который пришел по вашей ссылке. \n - " . $botParams->Referal_procent . " % от каждого выполненного задания вашего реферала. \n\n<b>Ваша ссылка для приглашения:</b> https://t.me/bitcoinManinerr_bot?start=" . $request['message']['from']['id'],
+                                'text' => "🎁 Зарабатывайте серьезные деньги приглашая друзей в бота. Каждый человек кто пришел в бота по вашей ссылке будет считаться вашим рефералом. \n\n💵Вознаграждения за рефералов:\n - " . $botParams->Referal_sum  * $this->bitcoin . " сатоши за каждого реферала, который пришел по вашей ссылке. \n - " . $botParams->Referal_procent . " % от каждого бонуса полученным вашим рефералом. \n\n<b>Ваша ссылка для приглашения:</b> https://t.me/bitcoinManinerr_bot?start=" . $request['message']['from']['id'],
                                 'parse_mode' => 'HTML',
                             ]);
                         }
@@ -284,6 +320,17 @@ class HomeController extends Controller
                         elseif ($request['message']['text'] == '💸 Вывести') {
                             $balance = $logicModel->accessBalance($request['message']['from']['id']);
                             if ($balance > $botParams->Minimal_windrow_sum) {
+                                $reply_markup =  Keyboard::make([
+                                    'keyboard' => $this->paymentKeyboardFrame,
+                                    'resize_keyboard' => true,
+                                ]);
+
+                                Telegram::sendMessage([
+                                    'chat_id' => $request['message']['from']['id'],
+                                    'text' => "💰 Введите сумму вывода в BTC\n\n<i>Например: 0.0002</i>",
+                                    'parse_mode' => 'HTML',
+                                    'reply_markup' => $reply_markup
+                                ]);
                                 $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 1);
                             } else {
                                 $reply_markup =  Keyboard::make([
@@ -301,17 +348,33 @@ class HomeController extends Controller
                         elseif ($request['message']['text'] == '💸 Получить бонус') {
                             $keyboard = array("inline_keyboard"=>self::$bonusKeyboard, 'one_time_keyboard' => true);
                             $keyboard = json_encode($keyboard);
-                            Telegram::sendMessage([
-                                'chat_id' => $request['message']['from']['id'],
-                                'text' => (string) 'Ты перешел в раздел "Получить бонус". Выбери один из квадратов и получи приз.',
-                                'reply_markup' => $keyboard
-                            ]);
-                        }
-                        else {
-                            Telegram::sendMessage([
-                                'chat_id' => 509940535,
-                                'text' => (string) $request
-                            ]);
+
+                            if ($logicModel->checkMessageDate($request['message']['from']['id'])) {
+                                $response = Telegram::sendMessage([
+                                    'chat_id' => $request['message']['from']['id'],
+                                    'text' => (string) 'Ты перешел в раздел "Получить бонус". Выбери один из квадратов и получи приз.',
+                                    'reply_markup' => $keyboard
+                                ]);
+                                $params = [
+                                    'messageId' => $response['message_id'],
+                                    'userId' => $response['chat']['id'],
+                                    'date' => Carbon::now()
+                                ];
+                                $logicModel->setMessageId($response['chat']['id'], $params);
+                            } else {
+                                $date = $logicModel->getLastMessageDate($request['message']['from']['id']);
+                                if (isset($date[0])) {
+                                     $answer = Carbon::parse($date[0]->dataLast)->addMinutes(1440)->diffAsCarbonInterval(Carbon::now())->locale('ru');
+                                } else {
+                                    $answer = 'Бонус недоступен';
+                                }
+                                Telegram::sendMessage([
+                                    'chat_id' => $request['message']['from']['id'],
+                                    'text' => "⏱ До следющего получения бонуса: <b>" . (string) $answer . "</b>",
+                                    'parse_mode' => 'HTML',
+                                ]);
+                            }
+
                         }
                     }
 
@@ -343,25 +406,131 @@ class HomeController extends Controller
                             ]);
                         }
                     }
+                    elseif ($userFrames[0]->paymentFrame == 1) {
+                        if ($request['message']['text'] != '🔙 Назад') {
+                            if ((double)str_replace(',', '.', $request['message']['text'])) {
+                                $sum = (double)str_replace(',', '.', $request['message']['text']);
+                                $balanceAr = $logicModel->getUserBalance($request['message']['from']['id']);
+                                if (isset($balanceAr[0])) {
+                                    if ((double)$balanceAr[0]->balance < $sum) {
+                                        Telegram::sendMessage([
+                                            'chat_id' => $request['message']['from']['id'],
+                                            'text' => '🚫 Ошибка. Недостаточно средств на балансе!',
+                                            'parse_mode' => 'HTML'
+                                        ]);
+                                        $reply_markup =  Keyboard::make([
+                                            'keyboard' => $this->keyboard,
+                                            'resize_keyboard' => true,
+                                        ]);
+                                        Telegram::sendMessage([
+                                            'chat_id' => $request['message']['from']['id'],
+                                            'text' => $botParams->Welcome_message,
+                                            'parse_mode' => 'HTML',
+                                            'reply_markup' => $reply_markup
+                                        ]);
+                                        $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 0);
+                                    } else {
+                                        $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 2);
+                                        $params = [
+                                            'userId' => $request['message']['from']['id'],
+                                            'value' => $sum
+                                        ];
+                                        $logicModel->setPaymentTransaction($params);
+                                        Telegram::sendMessage([
+                                            'chat_id' => $request['message']['from']['id'],
+                                            'text' => '✅ Успех! Введите ваш BTC кошелек',
+                                            'parse_mode' => 'HTML',
+                                        ]);
+                                    }
+                                }
+                            }
+                            else {
+
+                                    Telegram::sendMessage([
+                                        'chat_id' => $request['message']['from']['id'],
+                                        'text' => '🚫 Ошибка. Сообщение не возможно преобразовать в число!',
+                                        'parse_mode' => 'HTML'
+                                    ]);
+
+                            }
+                        }
+                        else {
+                            $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 0);
+                            $reply_markup =  Keyboard::make([
+                                'keyboard' => $this->keyboard,
+                                'resize_keyboard' => true,
+                            ]);
+
+                            Telegram::sendMessage([
+                                'chat_id' => $request['message']['from']['id'],
+                                'text' => $botParams->Welcome_message,
+                                'parse_mode' => 'HTML',
+                                'reply_markup' => $reply_markup
+                            ]);
+                        }
+                    }
+                    elseif ($userFrames[0]->paymentFrame == 2) {
+                        if ($request['message']['text'] != '🔙 Назад') {
+                            $params = [
+                                'btc' => $request['message']['text'],
+                                'userId' => $request['message']['from']['id'],
+                            ];
+                            $reply_markup =  Keyboard::make([
+                                'keyboard' => $this->keyboard,
+                                'resize_keyboard' => true,
+                            ]);
+                            $logicModel->setPaymentTransaction($params);
+                            $dataLogin = $logicModel->getPaymentTransaction($request['message']['from']['id']);
+                            $logicModel->removeToBalance($request['message']['from']['id'], $dataLogin->value);
+                            $paramsList = [
+                                'btc' => $request['message']['text'],
+                                'userId' => $request['message']['from']['id'],
+                                'value' => $dataLogin->value
+                            ];
+                            $logicModel->setPaymentList($paramsList);
+                            $logicModel->removePaymentTransaction($request['message']['from']['id']);
+                            $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 0);
+                            Telegram::sendMessage([
+                                'chat_id' => $request['message']['from']['id'],
+                                'text' => '✅ Успех! Заявка на вывод оформлена',
+                                'parse_mode' => 'HTML',
+                            ]);
+                            Telegram::sendMessage([
+                                'chat_id' => $request['message']['from']['id'],
+                                'text' => $botParams->Welcome_message,
+                                'parse_mode' => 'HTML',
+                                'reply_markup' => $reply_markup
+                            ]);
+                        }
+                        else {
+                            $logicModel->updateUserFrame($request['message']['from']['id'], 'paymentFrame', 0);
+                            $logicModel->removePaymentTransaction($request['message']['from']['id']);
+                            $reply_markup =  Keyboard::make([
+                                'keyboard' => $this->keyboard,
+                                'resize_keyboard' => true,
+                            ]);
+
+                            Telegram::sendMessage([
+                                'chat_id' => $request['message']['from']['id'],
+                                'text' => $botParams->Welcome_message,
+                                'parse_mode' => 'HTML',
+                                'reply_markup' => $reply_markup
+                            ]);
+                        }
+                    }
                 }
             }
         }
         elseif(isset($request['callback_query']))  {
 
-            Telegram::sendMessage([
-                'chat_id' => 509940535,
-                'text' => (string) $request['callback_query']['inline_message_id'],
-            ]);
-            /*
             Telegram::editMessageText([
-                'chat_id' => 509940535,
-                'text' => 'Ваш приз: ' . (string) $request['callback_query']['data'],
-                'inline_message_id' => (string) $request['callback_query']['message']['message_id'],
-                //'reply_markup' => Keyboard::remove()
+                'chat_id' => $request['callback_query']['message']['chat']['id'],
+                'text' => "<b>Поздравляем!</b>\n\n 💸 Вы получили приз в размере: " . (string) $request['callback_query']['data'] . " сатоши",
+                'message_id' => $request['callback_query']['message']['message_id'],
+                'parse_mode' => 'HTML',
             ]);
-            */
-        } else {
-            //
+            $logicModel->addToBalance($request['callback_query']['message']['chat']['id'], $request['callback_query']['data'] / $this->bitcoin);
+            $logicModel->addToInviteBalance($request['callback_query']['message']['chat']['id'], ($request['callback_query']['data'] * ($botParams->Referal_procent / 100))  / $this->bitcoin);
         }
 
 

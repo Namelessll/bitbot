@@ -22,7 +22,9 @@ Route::group(['middleware' => 'auth'], function () {
     Route::get('/bot/statistic', 'HomeController@getStatistic')->name('getStatistic');
     Route::get('/bot/questions', 'HomeController@getQuestions')->name('getQuestions');
     Route::get('/bot/mails', 'HomeController@getMailsPage')->name('getMailsPage');
+    Route::get('/bot/payment/list', 'HomeController@getPaymentsList')->name('getPaymentsList');
 
+    Route::post('/bot/payment/list/update', 'HomeController@updatePaymentList')->name('updatePaymentList');
     Route::post('/bot/mails/send', 'HomeController@sendMailToUsers')->name('sendMailToUsers');
 
     Route::post('/bot/questions/answer', 'HomeController@answerQuestion')->name('answerQuestion');

@@ -91,7 +91,7 @@
                                     <a class="nav-link @if(\Request::route()->getName() == "getMailsPage") active @endif" href="{{route('getMailsPage')}}">Рассылка</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" href="#">Выплаты</a>
+                                    <a class="nav-link @if(\Request::route()->getName() == "getPaymentsList") active @endif" href="{{route('getPaymentsList')}}">Выплаты</a>
                                 </li>
                             </ul>
                         </div>
